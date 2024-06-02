@@ -1,0 +1,68 @@
+---
+title: RADPAD Mixed Model
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(Matrix)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(knitr)
+```
+
+```{r echo = FALSE}
+radpad <- read_csv("radpad.csv") |>
+  mutate(ID = as.factor(ID)) |>
+  mutate(RADPAD = as.factor(`RADPAD Drape Used? Y/N`)) |>
+  mutate(Occupation = as.factor(Occupation)) |>
+  mutate(Procedure = as.factor(`Procedure  type (BPV, PDA PMI, PV Stent)`))
+```
+
+### Mixed Model
+
+I used a log transform on the response to improve the model fit (by inspection of residual plots). The random effect is procedure ID.
+
+```{r}
+m <- lmer(log(Dose + 1) ~ RADPAD*Occupation + (1 | ID), data = radpad)
+```
+
+### ANOVA for Fixed Effects
+
+```{r}
+anova(m)
+```
+
+### LS Means for RADPAD by Occupation
+
+LS means have been back-transformed from log scale.
+
+```{r}
+emmeans(m, ~ RADPAD | Occupation, type = "response")
+```
+
+### Pairwise contrasts for RADPAD by Occupation
+
+Contrasts have been back-transformed from log scale.
+
+```{r}
+rg <- ref_grid(m)
+em <- emmeans(regrid(rg, transform = "response"), ~ RADPAD | Occupation)
+c <- contrast(em, interaction = "pairwise")
+summary(c, infer = c(TRUE, TRUE))
+```
+
+\newpage
+
+### Residual Analysis
+
+```{r out.width = "50%", out.height = "50%"}
+mdat <- data.frame(predicted = predict(m), residual = residuals(m))
+ggplot(mdat, aes(x = residual)) + geom_histogram() +
+  labs(title = "Residuals")
+ggplot(mdat,aes(sample=residual)) + stat_qq() + stat_qq_line() +
+  labs(title = "QQ Plot")
+```
+
+
